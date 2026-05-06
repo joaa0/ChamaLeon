@@ -1,108 +1,138 @@
 # ChamaLeon — Especificação Técnica
 
-Documento técnico alinhado ao comportamento real de `ChamaLeon_telegram.py`.
-
 ## 1. Visão geral
 
-ChamaLeon é um assistente financeiro pessoal no Telegram com persistência em Google Sheets e automações no Zapier.
+O **ChamaLeon** é um assistente financeiro conversacional integrado ao Telegram.
 
-O fluxo atual está dividido assim:
+Ele permite que o usuário:
 
-- O bot controla interface, onboarding, estados, histórico e resumo mensal.
-- O Google Sheets armazena usuários e transações.
-- O Zap 1 recebe `create`, `delete` e `report`.
-- O Zap 2 recebe `update_salary`.
+- faça onboarding com e-mail e salário;
+- registre gastos e recebimentos por mensagem;
+- adicione observações opcionais com `|`;
+- consulte histórico paginado;
+- visualize resumo mensal;
+- atualize salário;
+- delete transações;
+- solicite relatório financeiro personalizado por e-mail com apoio da Mistral AI.
 
-## 2. Fonte da verdade do runtime
+A arquitetura atual combina:
 
-Hoje a fonte de verdade do comportamento implementado é o arquivo `ChamaLeon_telegram.py`.
-
-Os pontos centrais do runtime são:
-
-- `message_handler()`
-- `button_handler()`
-- `GoogleSheetsClient`
-- os `CommandHandler(...)` registrados em `main()`
-
-## 3. Comandos realmente registrados
-
-No `main()`, o bot registra:
-
-- `/start`
-- `/registro`
-- `/historico`
-- `/salario`
-- `/relatorio`
-
-Observação importante:
-
-- `main()` também tenta registrar `/dinheiro`, mas `command_dinheiro` não existe no arquivo atual.
-- Portanto, este documento trata `/dinheiro` como **lacuna do código**, não como comando funcional confirmado.
-
-## 4. Estados da conversa
-
-Estados definidos hoje:
-
-```python
-MENU = 0
-AWAITING_EXPENSE = 1
-SELECTING_CATEGORY = 2
-CONFIRMING = 3
-AWAITING_SALARY = 4
-AWAITING_EMAIL = 5
-AWAITING_ONBOARDING_SALARY = 6
+```text
+Telegram → Bot Python → Google Sheets + Zapier → Mistral AI → E-mail
 ```
 
-Uso real observado:
+O arquivo principal de execução do bot é:
 
-- `AWAITING_EMAIL`: aguarda e-mail do onboarding.
-- `AWAITING_ONBOARDING_SALARY`: aguarda salário inicial do onboarding.
-- `AWAITING_SALARY`: aguarda novo valor de salário via menu.
-- `AWAITING_EXPENSE`: aguarda texto de transação iniciado pelo botão de novo registro.
+```bash
+ChamaLeon_telegram.py
+```
 
-Estados definidos mas sem papel claro no fluxo atual:
+---
 
-- `MENU`
-- `SELECTING_CATEGORY`
-- `CONFIRMING`
+## 2. Stack utilizada
 
-## 5. Componentes do sistema
+| Camada | Tecnologia | Função |
+|---|---|---|
+| Interface | Telegram Bot | Entrada e saída conversacional |
+| Lógica | Python | Estados, validação, parse, cache, payloads |
+| Persistência | Google Sheets | Abas `users` e `transactions` |
+| Integração | Zapier | Automação dos fluxos externos |
+| IA | Mistral AI | Geração textual do relatório financeiro |
+| E-mail | Email by Zapier | Envio do relatório final |
 
-### 5.1 Bot Telegram
+---
 
-Responsabilidades atuais:
+## 3. Comandos implementados
 
-- receber comandos, texto e cliques em botões;
-- validar onboarding;
-- ler `users` e `transactions` direto no Google Sheets;
-- calcular resumo mensal localmente;
-- enviar payloads para os webhooks do Zapier;
-- manter cache local em `context.user_data`.
+| Comando | Função |
+|---|---|
+| `/start` | Inicia o bot e verifica onboarding |
+| `/registro` | Registra gasto ou recebimento |
+| `/historico` | Mostra histórico paginado |
+| `/salario` | Mostra resumo financeiro e permite atualizar salário |
+| `/dinheiro` | Alias funcional de `/salario` |
+| `/relatorio` | Solicita relatório financeiro por e-mail |
 
-O que o bot faz diretamente:
+Observação:
 
-- leitura de histórico;
-- leitura de salário;
-- cálculo de entradas e gastos do mês;
-- criação ou atualização do usuário durante onboarding;
-- filtro de transações por `user_id` exato.
+- `/dinheiro` **não é uma lacuna**. Ele está implementado como alias de `/salario`.
+- Ambos usam a mesma lógica de resumo mensal.
 
-O que o bot não faz diretamente:
+---
 
-- gravar transação na aba `transactions`;
-- deletar linha da planilha por conta própria;
-- atualizar salário diretamente na aba `users` fora do onboarding;
-- produzir análise financeira com IA localmente.
+## 4. Estrutura do Google Sheets
 
-### 5.2 Zap 1
+### 4.1 Aba `users`
 
-Contrato observado no bot:
+| Coluna | Campo | Descrição |
+|---|---|---|
+| A | `user_id` | ID do usuário no Telegram |
+| B | `email` | E-mail para envio do relatório |
+| C | `registered_date` | Data de cadastro |
+| D | `salary` | Salário base |
+| E | `updated_at` | Última atualização |
 
-- `action=create`
-- `action=delete`
-- `action=report`
+### 4.2 Aba `transactions`
 
-Payload de `create` enviado pelo bot:
+| Coluna | Campo | Descrição |
+|---|---|---|
+| A | `id` | ID único da transação |
+| B | `user_id` | ID do usuário no Telegram |
+| C | `date` | Data da transação |
+| D | `description` | Descrição curta |
+| E | `category` | Categoria |
+| F | `amount` | Valor |
+| G | `type` | `expense` ou `income` |
+| H | `created_at` | Data de criação |
+| I | `updated_at` | Última atualização |
+| J | `details` | Observações opcionais |
+
+---
+
+## 5. Fluxos principais do bot
+
+## 5.1 Onboarding
+
+Fluxo:
+
+```text
+/start
+→ verificar user_id na aba users
+→ se usuário não existir ou estiver sem salário válido: pedir e-mail
+→ validar e-mail
+→ pedir salário
+→ salvar/atualizar usuário na aba users via gspread
+→ liberar menu principal
+```
+
+O onboarding inicial é salvo diretamente pelo bot usando `gspread`.
+
+Ele **não passa pelo Zap 2**.
+
+O usuário só é considerado apto quando existe uma linha na aba `users` com salário válido.
+
+---
+
+## 5.2 Registro de transações
+
+Exemplos aceitos:
+
+```text
+/registro ifood 39
+/registro mercado 84 | compra do mês
+/registro freelance 800 | projeto abril
+```
+
+O bot:
+
+1. separa `description`, `amount` e `details`;
+2. normaliza o valor;
+3. detecta categoria e tipo;
+4. mostra confirmação;
+5. após confirmação, envia `action=create` para o Zap 1;
+6. invalida o cache de `transactions` e `salary_summary`.
+
+Payload enviado ao Zap 1:
 
 ```json
 {
@@ -113,46 +143,74 @@ Payload de `create` enviado pelo bot:
   "amount": 84.0,
   "category": "Compras",
   "type": "expense",
-  "date": "2026-05-02",
+  "date": "2026-05-06",
   "_source": "telegram_bot",
-  "_timestamp": "2026-05-02T12:00:00",
+  "_timestamp": "2026-05-06T12:00:00",
   "_normalized": true
 }
 ```
 
-Payload de `delete`:
+---
 
-```json
-{
-  "action": "delete",
-  "user_id": "7500965215",
-  "transaction_id": "7500965215_20260502120000",
-  "_source": "telegram_bot",
-  "_timestamp": "2026-05-02T12:00:00"
-}
+## 5.3 Histórico
+
+O histórico principal **não depende do Zap 1**.
+
+Fluxo atual:
+
+```text
+Bot → gspread → aba transactions → filtro por user_id → paginação → Telegram
 ```
 
-Payload de `report`:
+O Zap 1 ainda possui branch `READ`, mas ela é considerada **legada**.
 
-```json
-{
-  "action": "report",
-  "user_id": "7500965215",
-  "_source": "telegram_bot",
-  "_timestamp": "2026-05-02T12:00:00"
-}
+---
+
+## 5.4 Resumo mensal
+
+O resumo mensal é calculado diretamente pelo bot.
+
+Fórmula:
+
+```text
+saldo disponível = salário registrado + entradas do mês - gastos do mês
 ```
 
-Observação:
+O bot lê:
 
-- O bot dispara o relatório pelo payload acima.
-- No sistema atual, o fluxo externo do Zap 1 usa salário e transações mensais do usuário para montar um relatório personalizado.
-- O e-mail final contém insights, dicas e apontamentos.
-- Dentro deste repositório, o que está implementado diretamente é o disparo do fluxo e o contrato de integração.
+- salário na aba `users`;
+- transações do mês atual na aba `transactions`;
+- entradas (`income`);
+- gastos (`expense`).
 
-### 5.3 Zap 2
+Formatos aceitos para datas e valores:
 
-Contrato observado no bot:
+- `YYYY-MM-DD`
+- `DD/MM/YYYY`
+- ISO com hora
+- serial date do Google Sheets
+- `50`
+- `50.00`
+- `50,00`
+- `R$ 50,00`
+
+---
+
+## 5.5 Atualização de salário
+
+A atualização de salário é feita pelo Zap 2.
+
+Fluxo:
+
+```text
+Usuário abre Meu Dinheiro / Meu Salário
+→ clica em Registrar / Atualizar
+→ informa o valor
+→ Bot envia action=update_salary para o Zap 2
+→ Zap 2 atualiza salary e updated_at na aba users
+```
+
+Payload:
 
 ```json
 {
@@ -160,341 +218,347 @@ Contrato observado no bot:
   "user_id": "7500965215",
   "salary": 3500.0,
   "_source": "telegram_bot",
-  "_timestamp": "2026-05-02T12:00:00"
+  "_timestamp": "2026-05-06T12:00:00"
 }
 ```
 
-Responsabilidade esperada:
+---
 
-- localizar o `user_id` na aba `users`;
-- atualizar `salary`;
-- atualizar `updated_at`.
-
-O bot usa o Zap 2 apenas para atualização posterior de salário. O onboarding inicial grava o usuário diretamente via `gspread`.
-
-### 5.4 Google Sheets
-
-A planilha é tratada como banco simplificado.
-
-Abas usadas hoje:
-
-- `transactions`
-- `users`
-
-Estrutura esperada de `transactions`:
-
-| Coluna | Campo |
-|---|---|
-| A | `id` |
-| B | `user_id` |
-| C | `date` |
-| D | `description` |
-| E | `category` |
-| F | `amount` |
-| G | `type` |
-| H | `created_at` |
-| I | `updated_at` |
-| J | `details` |
-
-Estrutura esperada de `users`:
-
-| Coluna | Campo |
-|---|---|
-| A | `user_id` |
-| B | `email` |
-| C | `registered_date` |
-| D | `salary` |
-| E | `updated_at` |
-
-## 6. Fluxos implementados
-
-### 6.1 `/start` e onboarding
-
-Fluxo real:
-
-```text
-/start
-→ user_exists(user_id)
-→ se não existir ou não tiver salário válido:
-    → pedir e-mail
-    → validar e-mail
-    → pedir salário
-    → create_user(user_id, email, salary)
-    → mostrar menu principal
-→ caso contrário:
-    → mostrar menu principal
-```
-
-Detalhe relevante:
-
-- `user_exists()` considera o usuário apto apenas quando existe linha com `salary` preenchido e diferente de `0`.
-
-### 6.2 Registro de transação
-
-O registro rápido aceita:
-
-```text
-/registro ifood 39
-/registro mercado 84 | compra semanal
-/registro freelance 800 | cliente x
-```
-
-Processamento:
-
-```text
-parse_quick_expense()
-→ split_transaction_details()
-→ normalize_amount()
-→ detect_category()
-→ show_confirmation()
-→ send_expense_to_zapier()
-```
-
-Regras relevantes:
-
-- `description` vem do segundo token.
-- `amount` vem do terceiro token.
-- tudo após `|` vira `details`.
-- o parse rápido aceita tanto gasto quanto recebimento.
-
-### 6.3 Histórico
-
-O histórico é lido localmente pelo bot:
-
-```text
-get_user_transactions(user_id)
-→ get_all_records() na aba transactions
-→ filtro exato por row["user_id"]
-→ paginação em format_transactions()
-```
-
-O cache local usa a chave:
-
-- `transactions`
-
-### 6.4 Resumo mensal e salário
+## 5.6 Deleção de transações
 
 Fluxo:
 
 ```text
-show_salary_menu() ou command_salario()
-→ get_user_salary(user_id)
-→ get_monthly_summary(user_id)
-→ calcular balance = salary + total_income - total_expense
-```
-
-Regras de `get_monthly_summary()`:
-
-- filtra por `transactions.user_id` com match exato;
-- filtra apenas o mês atual;
-- normaliza aliases de tipo para `expense` e `income`;
-- normaliza valores como `50`, `50.00`, `50,00` e `R$ 50,00`;
-- aceita datas em múltiplos formatos compatíveis com Sheets e ISO.
-
-O cache local usa a chave:
-
-- `salary_summary`
-
-### 6.5 Deleção
-
-Fluxo:
-
-```text
-menu_delete_transaction
-→ listar até 10 transações recentes do usuário
-→ delete_select:{transaction_id}
-→ confirmação
-→ delete_confirm:{transaction_id}
-→ POST para Zap 1 com action=delete
+Usuário escolhe Deletar Transação
+→ Bot lista até 10 transações recentes do próprio usuário
+→ Usuário seleciona uma
+→ Bot mostra confirmação
+→ Usuário confirma
+→ Bot envia action=delete para o Zap 1
+→ Zap 1 remove a linha correspondente no Google Sheets
 ```
 
 Proteção lógica atual:
 
-- o bot só deixa selecionar IDs vindos das transações filtradas do próprio usuário.
+- o bot lista apenas transações filtradas pelo `user_id` do usuário atual;
+- a transação deletada precisa ter vindo dessa lista;
+- depois do sucesso, os caches `transactions` e `salary_summary` são invalidados.
 
-### 6.6 Relatório
+Payload:
 
-Fluxo real do bot:
-
-```text
-/relatorio ou botão "Relatório"
-→ montar payload com action=report
-→ POST no ZAPIER_WEBHOOK_EXPENSE
-→ exibir sucesso ou falha
+```json
+{
+  "action": "delete",
+  "user_id": "7500965215",
+  "transaction_id": "7500965215_20260506120000",
+  "_source": "telegram_bot",
+  "_timestamp": "2026-05-06T12:00:00"
+}
 ```
 
-No sistema atual, o texto exibido ao usuário corresponde ao comportamento esperado da integração: o relatório é montado fora do bot, usando salário e transações mensais do usuário, e enviado por e-mail com insights, dicas e apontamentos.
+---
 
-## 7. Categorização atual
+## 5.7 Relatório por e-mail
 
-O mapeamento local hoje inclui:
+O relatório é solicitado pelo bot e gerado pela branch `REPORT` do Zap 1.
 
-### Alimentação / `expense`
-
-- `ifood`
-- `uber eats`
-- `rappi`
-- `pizza`
-- `restaurante`
-- `lanche`
-- `café`
-
-### Transporte / `expense`
-
-- `uber`
-- `99`
-- `taxi`
-- `passagem`
-- `combustível`
-- `gasolina`
-- `onibus`
-- `onibûs`
-
-### Entretenimento / `expense`
-
-- `netflix`
-- `spotify`
-- `cinema`
-- `jogo`
-
-### Saúde / `expense`
-
-- `farmácia`
-- `médico`
-- `dentista`
-- `vitamina`
-- `remédio`
-
-### Educação / `expense`
-
-- `curso`
-- `livro`
-- `escola`
-- `apostila`
-
-### Compras / `expense`
-
-- `mercado`
-- `supermercado`
-- `roupa`
-- `eletrônico`
-
-### Trabalho / `income`
-
-- `salário`
-- `recebi`
-- `ganhei`
-- `bônus`
-- `freelance`
-- `venda`
-- `trabalho`
-- `renda`
-
-Fallback:
-
-- categoria `Outros`
-- tipo `expense`
-
-## 8. Variáveis de ambiente
-
-Variáveis lidas pelo runtime:
-
-| Variável | Uso |
-|---|---|
-| `TELEGRAM_BOT_TOKEN` | token do bot |
-| `ZAPIER_WEBHOOK_EXPENSE` | webhook do Zap 1 |
-| `ZAPIER_WEBHOOK_SALARY` | webhook do Zap 2 |
-| `GOOGLE_CREDENTIALS_PATH` | credencial local em arquivo |
-| `GOOGLE_CREDENTIALS_JSON` | credencial inline para cloud |
-| `GOOGLE_SHEET_ID` | ID da planilha |
-| `SHEET_NAME` | nome da aba de transações |
-| `USERS_SHEET_NAME` | nome da aba de usuários |
-
-Condição mínima para conectar no Sheets:
-
-- `GOOGLE_SHEET_ID`
-- e pelo menos uma credencial entre `GOOGLE_CREDENTIALS_PATH` e `GOOGLE_CREDENTIALS_JSON`
-
-## 9. Cache local
-
-O bot mantém cache em `context.user_data["_cache"]`.
-
-Configuração atual:
-
-- TTL de 60 segundos
-
-Invalidações implementadas:
-
-- após `create`: `transactions` e `salary_summary`
-- após `delete`: `transactions` e `salary_summary`
-- após update de salário: `salary_summary`
-
-## 10. Dependências confirmadas no repositório
-
-`requirements.txt` contém hoje:
+Fluxo:
 
 ```text
+Bot envia action=report
+→ Zap 1 busca dados do usuário
+→ Zap 1 busca transações do mês
+→ Code Step prepara métricas financeiras
+→ Mistral AI gera análise textual
+→ Zapier formata HTML
+→ E-mail é enviado ao usuário
+```
+
+Payload:
+
+```json
+{
+  "action": "report",
+  "user_id": "7500965215",
+  "_source": "telegram_bot",
+  "_timestamp": "2026-05-06T12:00:00"
+}
+```
+
+O relatório é do **mês atual** e é enviado quando o usuário solicita.
+
+---
+
+## 6. Zap 1 — Fluxo principal
+
+O Zap 1 processa ações relacionadas a transações e relatório.
+
+Branches atuais:
+
+| Branch | Status | Função |
+|---|---|---|
+| `CREATE` | Ativa | Salva nova transação na aba `transactions` |
+| `READ` | Legada | Consulta transações pelo Zapier |
+| `DELETE` | Ativa | Remove transação pelo ID |
+| `REPORT` | Ativa | Gera relatório com IA e envia por e-mail |
+
+Observação importante:
+
+- O Zap 1 **não deve ser descrito como CRUD completo com Update**.
+- O fluxo atual cobre `CREATE`, `READ` legado, `DELETE` e `REPORT`.
+- Não há fluxo principal de `UPDATE` de transação.
+
+---
+
+## 7. Zap 2 — Atualização de salário
+
+O Zap 2 é isolado para salário.
+
+Ele deve processar apenas:
+
+```text
+user_id + salary
+```
+
+Fluxo:
+
+```text
+Webhook
+→ Code by Zapier
+→ Filter entity=user
+→ Lookup na aba users
+→ Update salary e updated_at
+```
+
+O Zap 2 **não deve conter**:
+
+- transações;
+- categorias;
+- valores de gastos;
+- IA;
+- múltiplos paths;
+- relatório;
+- `description`;
+- `amount`;
+- `type`;
+- `transaction_id`.
+
+Motivo da separação:
+
+```text
+salary pertence à entidade user
+transaction pertence à entidade transaction
+```
+
+Separar os fluxos reduz ambiguidade, duplicação de usuário e desalinhamento de colunas.
+
+---
+
+## 8. Relatório com IA e prompt
+
+A branch `REPORT` monta um payload financeiro com:
+
+- salário;
+- entradas adicionais;
+- total de despesas;
+- saldo final;
+- percentual da renda comprometida;
+- totais por categoria;
+- maiores transações;
+- sinais financeiros;
+- sinais comportamentais.
+
+A Mistral AI gera resposta em 5 seções:
+
+1. Planilha resumida de gastos.
+2. Diagnóstico financeiro.
+3. Ajuste principal.
+4. Novo cenário após ajuste.
+5. Uso da sobra.
+
+Guardrails principais:
+
+- tratar inferências como hipóteses;
+- não prometer resultado financeiro;
+- não recomendar produtos financeiros específicos;
+- evitar linguagem absoluta;
+- não sugerir cortes agressivos em saúde ou educação;
+- se houver déficit, priorizar equilíbrio antes de reserva;
+- sugerir faixas de ajuste, não valores rígidos.
+
+---
+
+## 9. Categorização
+
+O bot usa keyword matching local para inferir categoria e tipo.
+
+| Exemplo | Categoria | Tipo |
+|---|---|---|
+| `ifood 39` | Alimentação | `expense` |
+| `uber 25` | Transporte | `expense` |
+| `mercado 300` | Compras | `expense` |
+| `curso 100` | Educação | `expense` |
+| `freelance 800` | Trabalho | `income` |
+| `salário 3500` | Trabalho | `income` |
+| sem correspondência | Outros | `expense` |
+
+Categorias principais do bot:
+
+- Alimentação
+- Transporte
+- Entretenimento
+- Saúde
+- Educação
+- Moradia
+- Compras
+- Outros
+
+A branch `REPORT` pode aplicar normalizações adicionais para fins de análise financeira.
+
+---
+
+## 10. Cache local
+
+O bot usa cache simples em memória dentro de `context.user_data["_cache"]`.
+
+Configuração:
+
+```text
+TTL = 60 segundos
+```
+
+Chaves atuais:
+
+| Chave | Uso |
+|---|---|
+| `transactions` | Histórico e deleção |
+| `salary_summary` | Salário, entradas, gastos e saldo mensal |
+
+Invalidações:
+
+| Evento | Cache invalidado |
+|---|---|
+| Criação de transação | `transactions`, `salary_summary` |
+| Deleção de transação | `transactions`, `salary_summary` |
+| Atualização de salário | `salary_summary` |
+
+---
+
+## 11. Variáveis de ambiente
+
+```bash
+TELEGRAM_BOT_TOKEN=
+
+ZAPIER_WEBHOOK_EXPENSE=
+ZAPIER_WEBHOOK_SALARY=
+
+GOOGLE_SHEET_ID=
+GOOGLE_CREDENTIALS_PATH=
+GOOGLE_CREDENTIALS_JSON=
+
+SHEET_NAME=transactions
+USERS_SHEET_NAME=users
+```
+
+É necessário usar uma das opções:
+
+```text
+GOOGLE_CREDENTIALS_PATH
+ou
+GOOGLE_CREDENTIALS_JSON
+```
+
+Em ambiente cloud, `GOOGLE_CREDENTIALS_JSON` deve preservar corretamente a `private_key`.
+
+O código corrige `\n` para `
+` antes de autenticar.
+
+---
+
+## 12. Dependências
+
+`requirements.txt` atual:
+
+```txt
 python-telegram-bot==21.1
 requests==2.31.0
 python-dotenv==1.0.0
 gspread==5.12.0
+google-auth
 ```
 
-Observação:
+---
 
-- o código também importa `google.oauth2.service_account.Credentials`;
-- portanto, o ambiente precisa disponibilizar `google-auth`, mesmo que ele não apareça explicitamente no `requirements.txt` atual.
+## 13. Execução local
 
-## 11. Lacunas e problemas atuais
+```bash
+python3 ChamaLeon_telegram.py
+```
 
-### 11.1 `/dinheiro` está registrado, mas não implementado
+O bot roda em polling.
 
-`main()` registra `CommandHandler("dinheiro", command_dinheiro)`, porém `command_dinheiro` não existe no arquivo. Isso é um desalinhamento real do runtime.
+Apenas uma instância deve rodar por vez.
 
-### 11.2 Estados definidos além do fluxo realmente usado
+---
 
-`MENU`, `SELECTING_CATEGORY` e `CONFIRMING` existem na enumeração, mas o fluxo atual depende principalmente de `AWAITING_EMAIL`, `AWAITING_ONBOARDING_SALARY`, `AWAITING_SALARY` e `AWAITING_EXPENSE`.
+## 14. Deploy
 
-### 11.3 Estado da conversa é volátil
+Procfile esperado:
 
-Todo o fluxo depende de `context.user_data`. Se o processo reiniciar, onboarding e edições pendentes são perdidos.
+```text
+worker: python ChamaLeon_telegram.py
+```
 
-### 11.4 Runtime com logs de debug excessivos
+Checklist:
 
-O arquivo imprime sinais de ambiente no startup e configura logging global em `DEBUG`. Isso é útil para diagnóstico, mas hoje aumenta ruído e sensibilidade operacional.
+1. configurar variáveis de ambiente;
+2. compartilhar a planilha com a service account;
+3. publicar Zap 1;
+4. publicar Zap 2;
+5. garantir apenas uma instância de polling;
+6. acompanhar logs de conexão com Google Sheets, Zap 1 e Zap 2.
 
-### 11.5 Geração do relatório vive fora deste repositório
+---
 
-O comportamento do sistema em produção inclui relatório personalizado por e-mail com base em salário e transações mensais. Ainda assim, neste repositório o que fica visível é apenas o disparo de `action=report`; a montagem final do conteúdo continua dependente do Zap 1.
+## 15. Limitações conhecidas
 
-### 11.6 Webhooks continuam sendo ponto operacional sensível
-
-Os webhooks do Zapier seguem como endpoints externos críticos. O código atual não adiciona autenticação extra nem assinatura própria nas chamadas.
-
-### 11.7 `requirements.txt` parece incompleto para o runtime real
-
-O código usa `google.oauth2.service_account`, mas `google-auth` não aparece no arquivo atual de dependências.
-
-## 12. Resumo de responsabilidades
-
-| Parte | Responsabilidade atual |
+| Limitação | Impacto |
 |---|---|
-| Bot Telegram | interface, onboarding, leitura de Sheets, resumo mensal, envio aos webhooks |
-| Zap 1 | create, delete, report |
-| Zap 2 | update_salary |
-| Google Sheets | persistência de `transactions` e `users` |
+| Google Sheets como banco | Adequado para protótipo, limitado para escala |
+| Estado em memória | Restart pode interromper fluxos em andamento |
+| Webhooks sem autenticação própria | Ponto sensível operacional |
+| Relatório depende do Zap 1 | Geração final não vive totalmente no repositório Python |
+| Logs verbosos | Úteis para debug, mas devem ser reduzidos em produção |
+| Polling | Não deve rodar em múltiplas instâncias |
+| READ do Zap 1 legado | Histórico principal já é via `gspread` |
 
-## 13. Status consolidado
+---
+
+## 16. Status consolidado
 
 | Área | Status |
 |---|---|
 | Onboarding por e-mail e salário | Funcional |
 | Registro de transações | Funcional |
-| Campo `details` | Funcional |
-| Histórico via Sheets | Funcional |
+| Campo `details` com `|` | Funcional |
+| Histórico via `gspread` | Funcional |
 | Resumo mensal | Funcional |
+| `/salario` | Funcional |
+| `/dinheiro` | Funcional como alias de `/salario` |
 | Deleção via Zap 1 | Funcional |
-| Update de salário via Zap 2 | Funcional |
-| Relatório por e-mail | Funcional no sistema integrado; disparado pelo bot e gerado no Zap 1 |
-| Alias `/dinheiro` | Quebrado no código atual |
+| Atualização de salário via Zap 2 | Funcional |
+| Relatório por e-mail | Funcional no sistema integrado |
+| Cache local | Implementado |
 | Estado persistente | Não implementado |
+| Banco relacional | Não implementado |
+
+---
+
+## 17. Próximos passos naturais
+
+- substituir Google Sheets por Supabase/PostgreSQL;
+- adicionar autenticação/validação mais forte nos webhooks;
+- persistir estado de conversa;
+- reduzir logs de debug em produção;
+- enriquecer relatório com comparação entre meses;
+- adicionar gastos recorrentes.
