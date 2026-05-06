@@ -1,1 +1,1 @@
-worker: python finbot_telegram.py
+worker: python ChamaLeon_telegram.py
