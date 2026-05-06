@@ -1,10 +1,16 @@
-# 🤖 FinBot — Assistente Financeiro no Telegram
+# 🤖🦎 ChamaLeon — Assistente Financeiro no Telegram
 
+<<<<<<< HEAD
 LINK: https://web.telegram.org/a/#8729145296
 
 O **FinBot** é um bot de finanças pessoais via Telegram. Na apresentação do projeto, ele também aparece como **ChamaLeon**, o assistente financeiro conversacional integrado ao Telegram.
 
 Hoje ele permite fazer onboarding com e-mail e salário, registrar transações, consultar histórico, ver um resumo mensal, deletar transações e gerar um relatório personalizado por e-mail.
+=======
+**LINK:** https://web.telegram.org/a/#8729145296
+
+O **ChamaLeon** é um bot de finanças pessoais via Telegram. Hoje ele permite fazer onboarding com e-mail e salário, registrar transações, consultar histórico, ver um resumo mensal e gerar um relatório personalizado por e-mail.
+>>>>>>> 121e46df2e9c65a8d00d5d24b401d3a72f9c59a0
 
 O comportamento real do projeto hoje é:
 
@@ -461,6 +467,10 @@ Templates dos Zaps:
 - https://zapier.com/templates/details/zap-1-crud-principal-do-chamaleon-d65716?secret=MTp0ZW1wbGF0ZTpITGNCNFZiR0M5MmtCcDhLRUJXTW8zazViTHdOVXhfdVNzZFJabUV2ajFrOjF6MXdnNw
 - https://zapier.com/templates/details/zap-2-atualizao-ou-adio-de-salrio-edf22f?secret=MTp0ZW1wbGF0ZTpYd1JkVVBFOXkxeDJQT3ZjdEVieWYtZmJoUm5UTmdfdmRfNy1lUWNUNWNvOjU1OW83eg
 
+ https://zapier.com/templates/details/zap-1-crud-principal-do-chamaleon-d65716?secret=MTp0ZW1wbGF0ZTpITGNCNFZiR0M5MmtCcDhLRUJXTW8zazViTHdOVXhfdVNzZFJabUV2ajFrOjF6MXdnNw (zap1 tempalte)
+ 
+ https://zapier.com/templates/details/zap-2-atualizao-ou-adio-de-salrio-edf22f?secret=MTp0ZW1wbGF0ZTpYd1JkVVBFOXkxeDJQT3ZjdEVieWYtZmJoUm5UTmdfdmRfNy1lUWNUNWNvOjU1OW83eg (zap2 template)
+
 ### Dependências
 
 ```bash
@@ -484,7 +494,7 @@ Observação:
 ## ▶️ Execução local
 
 ```bash
-python3 finbot_telegram.py
+python3 ChamaLeon_telegram.py
 ```
 
 O bot roda em polling.
@@ -496,7 +506,7 @@ Apenas uma instância deve rodar por vez.
 O `Procfile` atual usa:
 
 ```text
-worker: python finbot_telegram.py
+worker: python ChamaLeon_telegram.py
 ```
 
 Para subir em Railway, Render ou similar:

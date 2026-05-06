@@ -1,8 +1,14 @@
 # 📋 Documentação Completa: ZAP 1 - CRUD Principal do ChamaLeon
 
+<<<<<<< HEAD
 ## Visão Geral
 
 Este é um sistema de automação financeira completo que funciona como um **gerenciador de transações com análise de IA**. Ele recebe dados via webhook, processa, normaliza e distribui em 4 fluxos distintos (CREATE, READ, DELETE, REPORT) com base no tipo de ação solicitada.
+=======
+> Documento atualizado após implementação do **REPORT com IA via MistralAI**.
+>
+> O Zap 1 é o fluxo principal do ChamaLeon para operações ligadas a transações financeiras, histórico, exclusão e relatório por e-mail.
+>>>>>>> 121e46df2e9c65a8d00d5d24b401d3a72f9c59a0
 
 ---
 
