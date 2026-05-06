@@ -1,6 +1,7 @@
 # 🤖🦎 ChamaLeon — Assistente Financeiro no Telegram
 
 **LINK:** https://web.telegram.org/a/#8729145296
+
 O **ChamaLeon** é um bot de finanças pessoais via Telegram. Hoje ele permite fazer onboarding com e-mail e salário, registrar transações, consultar histórico, ver um resumo mensal e gerar um relatório personalizado por e-mail.
 
 O comportamento real do projeto hoje é:
